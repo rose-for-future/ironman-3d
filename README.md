@@ -6,6 +6,10 @@
 
 Three.js 构建，纯静态零后端。
 
+## 素材来源与授权
+
+- 音效：[Kenney](https://kenney.nl) Sci-fi Sounds / Interface Sounds — CC0 公有领域
+
 ## 模型来源与授权
 
 - **MK85**：["Iron-Man Mark 85 | Rigged"](https://sketchfab.com/3d-models/iron-man-mark-85-rigged-dde1085c464d4f8) by Nihar Arora (9A Films) — CC Attribution 4.0
