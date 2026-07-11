@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>钢铁侠 3D 原型</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #06090f; }
+      #app { width: 100%; height: 100%; }
+      canvas { display: block; }
+
+      #hud {
+        position: fixed; inset: 0; pointer-events: none;
+        font-family: "PingFang SC", "Microsoft YaHei", monospace;
+        color: #7fd7ff;
+      }
+      .panel {
+        position: absolute; pointer-events: auto;
+        background: rgba(8, 20, 34, 0.72);
+        border: 1px solid rgba(90, 190, 255, 0.35);
+        border-radius: 8px; padding: 14px 16px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 0 18px rgba(60, 160, 255, 0.12) inset;
+      }
+      #title-panel { top: 20px; left: 20px; }
+      #title-panel h1 { font-size: 18px; letter-spacing: 3px; font-weight: 600; }
+      #title-panel p { font-size: 11px; opacity: 0.65; margin-top: 4px; letter-spacing: 1px; }
+
+      #control-panel { bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; align-items: center; }
+      #control-panel .ctrl-row { display: flex; gap: 12px; align-items: center; }
+      #region-row .row-label, #view-row .row-label, #model-row .row-label { font-size: 11px; letter-spacing: 2px; opacity: 0.65; margin-right: 4px; }
+      .hold-btn { user-select: none; -webkit-user-select: none; }
+      #control-panel label { font-size: 12px; letter-spacing: 2px; white-space: nowrap; }
+      #explode-slider { width: 220px; accent-color: #35b6ff; }
+      .btn {
+        background: rgba(53, 182, 255, 0.12); color: #7fd7ff;
+        border: 1px solid rgba(90, 190, 255, 0.45); border-radius: 6px;
+        padding: 6px 14px; font-size: 12px; letter-spacing: 2px; cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn:hover { background: rgba(53, 182, 255, 0.3); }
+      .btn.active { background: rgba(53, 182, 255, 0.45); color: #eaf7ff; }
+
+      #part-panel { top: 20px; right: 20px; min-width: 220px; display: none; }
+      #part-panel h2 { font-size: 13px; letter-spacing: 2px; margin-bottom: 6px; color: #ffd76a; }
+      #part-panel p { font-size: 11px; opacity: 0.75; line-height: 1.6; }
+
+      #status-panel { bottom: 24px; left: 20px; font-size: 11px; line-height: 1.9; letter-spacing: 1px; min-width: 168px; }
+      #status-panel .row { display: flex; justify-content: space-between; gap: 16px; }
+      #status-panel .val { color: #eaf7ff; }
+      #status-panel .ok { color: #6fe3a5; }
+
+      /* 贾维斯风格：全屏扫描线 + 四角光标 */
+      #scanlines {
+        position: fixed; inset: 0; pointer-events: none; z-index: 5; opacity: 0.35;
+        background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(120, 200, 255, 0.035) 2px 4px);
+      }
+      #scanbeam {
+        position: fixed; left: 0; right: 0; height: 90px; pointer-events: none; z-index: 5;
+        background: linear-gradient(180deg, transparent, rgba(80, 190, 255, 0.06), transparent);
+        animation: sweep 7s linear infinite;
+      }
+      @keyframes sweep { from { top: -12%; } to { top: 108%; } }
+      .panel::before, .panel::after {
+        content: ''; position: absolute; width: 10px; height: 10px; pointer-events: none;
+      }
+      .panel::before { top: -1px; left: -1px; border-top: 2px solid #35b6ff; border-left: 2px solid #35b6ff; }
+      .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid #35b6ff; border-right: 2px solid #35b6ff; }
+
+      #loading {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 14px;
+        background: #06090f; color: #7fd7ff; z-index: 10;
+        font-family: monospace; letter-spacing: 3px;
+      }
+      #loading .ring {
+        width: 64px; height: 64px; border-radius: 50%;
+        border: 2px solid rgba(53, 182, 255, 0.2); border-top-color: #35b6ff;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <script type="module" crossorigin src="./assets/main-BtmKW8PV.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/GLTFLoader-CSWCtJBE.js">
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="loading"><div class="ring"></div><div id="loading-text">系统启动中…</div></div>
+    <div id="scanlines"></div>
+    <div id="scanbeam"></div>
+    <div id="hud">
+      <div class="panel" id="title-panel">
+        <h1>MARK — 战甲分析系统</h1>
+        <p>拖拽旋转 · 滚轮缩放 · 点击部件查看</p>
+      </div>
+      <div class="panel" id="control-panel">
+        <div class="ctrl-row">
+          <label>拆解 <input type="range" id="explode-slider" min="0" max="100" value="0" /></label>
+          <button class="btn" id="btn-assemble">一键拆解</button>
+          <button class="btn" id="btn-suitup">穿甲动画</button>
+          <button class="btn active" id="btn-lights">💡 灯光</button>
+          <button class="btn active" id="btn-rotate">自动旋转</button>
+        </div>
+        <div class="ctrl-row" id="view-row">
+          <span class="row-label">视角控制</span>
+          <button class="btn hold-btn" id="btn-spin-left" title="按住持续左转（快捷键 ←）">⟲ 左转</button>
+          <button class="btn hold-btn" id="btn-spin-right" title="按住持续右转（快捷键 →）">右转 ⟳</button>
+          <button class="btn hold-btn" id="btn-zoom-in" title="按住持续放大（快捷键 ↑）">＋ 放大</button>
+          <button class="btn hold-btn" id="btn-zoom-out" title="按住持续缩小（快捷键 ↓）">－ 缩小</button>
+        </div>
+        <div class="ctrl-row" id="model-row">
+          <span class="row-label">战甲型号</span>
+          <button class="btn model-btn" data-model="mk85">MK85</button>
+          <button class="btn model-btn" data-model="4k">经典4K</button>
+        </div>
+        <div class="ctrl-row" id="region-row">
+          <span class="row-label">分区拆解</span>
+          <button class="btn region-btn" data-region="head">头部</button>
+          <button class="btn region-btn" data-region="torso">躯干</button>
+          <button class="btn region-btn" data-region="arms">双臂</button>
+          <button class="btn region-btn" data-region="legs">双腿</button>
+        </div>
+      </div>
+      <div class="panel" id="part-panel">
+        <h2 id="part-name">—</h2>
+        <p id="part-info">—</p>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn" id="btn-focus">🔍 聚焦部件</button>
+          <button class="btn" id="btn-unfocus">还原视角</button>
+        </div>
+      </div>
+      <div class="panel" id="status-panel">
+        <div class="row"><span>系统状态</span><span class="val ok" id="st-status">在线</span></div>
+        <div class="row"><span>装甲部件</span><span class="val" id="st-parts">—</span></div>
+        <div class="row"><span>总顶点数</span><span class="val" id="st-verts">—</span></div>
+        <div class="row"><span>拆解程度</span><span class="val" id="st-explode">0%</span></div>
+        <div class="row"><span>渲染帧率</span><span class="val" id="st-fps">—</span></div>
+        <div class="row"><span>输入诊断</span><span class="val" id="st-input">待输入</span></div>
+      </div>
+    </div>
+  </body>
+</html>
